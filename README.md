@@ -10,18 +10,20 @@ Setting up
 Assuming a blank Pi:
 
 ```
-# Get node, npm, node-red, etc
-sudo apt-get install node npm mosquitto mosquitto-clients nodered bluetooth bluez libbluetooth-dev libudev-dev
-# Install node-red service
+# Install a modern version of nodejs and nodered
+sudo apt-get install build-essential python-rpi.gpio
+bash <(curl -sL https://raw.githubusercontent.com/node-red/raspbian-deb-package/master/resources/update-nodejs-and-nodered)
+# Get dependencies
+sudo apt-get install mosquitto mosquitto-clients bluetooth bluez libbluetooth-dev libudev-dev
+
+# Auto start Node-RED
 sudo systemctl enable nodered.service
-# Install the node-red UI
-cd .node-red && sudo npm install node-red-contrib-ui
-
-# As it comes, NPM on the Pi is broken
-# and doesn't like installing native libs. Update NPM
-sudo npm -g install npm node-gyp
-
+# Start nodered manually this one time (this creates ~/.node-red)
+sudo systemctl start nodered.service
+# Install the Node-RED UI
+cd ~/.node-red && npm install node-red-contrib-ui
 # Now get this repository
+cd ~/
 git clone https://github.com/espruino/EspruinoHub
 # Install its' requirements
 cd EspruinoHub
@@ -39,7 +41,7 @@ Usage
 
 Run with `start.sh` (ideally you'd set this to auto-start - see below)
 
-You can then access Node-red using `http://localhost:1880`
+You can then access Node-RED using `http://localhost:1880`
 
 Once you add UI elements and click `Deploy` they'll be visible at `http://localhost:1880/ui`
 
@@ -50,10 +52,16 @@ via advertising.
 Useful MQTT parts are:
 
 * `/ble/presence/DEVICE` - 1 or 0 depending on whether device has been seen or not
-* `/ble/advertise/DEVICE` - JSON for device's broadcast name and rssi
+* `/ble/advertise/DEVICE` - JSON for device's broadcast name, rssi and manufacturer-specific data
+* `/ble/advertise/DEVICE/manufacturer/COMPANY` - Manufacturer-specific data (without leading company code)
 * `/ble/advertise/DEVICE/rssi` - Device signal strength
 * `/ble/advertise/DEVICE/SERVICE` - Raw service data (as JSON)
 * `/ble/advertise/DEVICE/PRETTY` or `/ble/PRETTY/DEVICE` - Decoded service data. `temp` is the obvious one
+
+To decode the hex-encoded manufacturer-specific data, try:
+```
+var data = Buffer.from(msg.payload.manufacturerData, 'hex');
+```
 
 
 Auto Start
@@ -78,6 +86,19 @@ fi
 * Now run `sudo raspi-config`, choose `Boot Options`, `Desktop / CLI`, and `Console Autologin`
 
 * Next time you reboot, the console will automatically run `EspruinoHub`
+
+Alternatively, you can configure it as a system start-up job using `systemd`:
+```
+    sudo cp systemd-EspruinoHub.service /etc/systemd/system/EspruinoHub.service
+```
+and edit it as necessary to match your installation directory and user configuration.  Then, to start it for testing:
+```
+    sudo systemctl start EspruinoHub.service && sudo journalctl -f -u EspruinoHub
+```
+If it works, enable it to start on login:
+```
+    sudo systemctl enable EspruinoHub.service
+```
 
 
 Testing MQTT
